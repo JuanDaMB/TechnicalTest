@@ -1,8 +1,9 @@
+using System;
 using UnityEngine;
 
 namespace Values
 {
-    [CreateAssetMenu(menuName = ("Dev/PlayerValues"))]
+    [CreateAssetMenu(menuName = ("Dev/PlayerValues"))][Serializable]
     public class PlayerValues : ScriptableObject
     {
         public int health;

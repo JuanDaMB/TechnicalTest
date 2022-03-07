@@ -1,8 +1,9 @@
+using System;
 using UnityEngine;
 
 namespace Values
 {
-    [CreateAssetMenu(menuName = "Dev/Equipment")]
+    [CreateAssetMenu(menuName = "Dev/Equipment")][Serializable]
     public class EquipmentValues : ScriptableObject
     {
         public Sprite sprite;

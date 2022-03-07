@@ -23,7 +23,7 @@ namespace View
                 if (value != _currentGold)
                 {
                     _difference = value - _currentGold;
-                    differenceGoldText.text = Mathf.Sign(_difference) > 0 ? "+$ " + _difference : "-$ " + _difference;
+                    differenceGoldText.text = Mathf.Sign(_difference) > 0 ? "+$ " + Mathf.Abs(_difference) : "-$ " +  Mathf.Abs(_difference);
                 }
 
                 _oldGold = _currentGold;

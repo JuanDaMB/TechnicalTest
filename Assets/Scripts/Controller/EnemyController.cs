@@ -38,6 +38,7 @@ namespace Controller
             model.OnWeaken += OnWeaken;
             model.OnVulnerable += OnVulnerable;
             model.OnDead += EnemyDead;
+            _view.IsAlive = false;
         }
 
         private void EnemyDead(object sender, EventArgs e)

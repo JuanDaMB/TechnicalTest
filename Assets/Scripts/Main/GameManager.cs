@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Controller;
 using Factory;
 using Model;
+using TMPro;
 using UnityEngine;
 using Values;
 using Random = UnityEngine.Random;
@@ -14,7 +15,7 @@ namespace Main
         #region Controllers
         
         private IPlayerController _playerController;
-        private IEnemyController _enemyController;
+        private IEnemyController _enemyController, _finalBossController;
         private List<ICardController> _cardControllers;
         private List<IEquipmentController> _shopEquipmentControllers, _inventoryEquipmentControllers, _equipedEquipmentControllers;
         private IInventoryController _inventoryController;
@@ -22,16 +23,42 @@ namespace Main
         #endregion
         
         public Transform cardsParent, shopParent, inventoryParent, equipmentParent, equipedParent;
-        public GameObject battleView, shopView, endGameView;
+        public GameObject battleView, shopView;
         
         [Header("Values")]
         public PlayerValues playerValues;
         public List<EnemyValues> enemyValues;
         public List<CardValues> cardValues;
         public List<EquipmentValues> equipmentValues;
-        [SerializeField]private List<EquipmentValues> _currentShop, _currentInventory, _currentEquiped;
+        private List<EquipmentValues> _currentShop, _currentInventory, _currentEquiped;
+        public EnemyValues finalBoss;
+        [Header("GameFlowCounters")] 
+        public TextMeshProUGUI turns;
+        public TextMeshProUGUI battles;
+        [Header("EndGame")] 
+        public GameObject endGameView;
+        public TextMeshProUGUI endGameMessage;
         private int _turnCount;
-        
+        private int _battleCount;
+
+        private int TurnCount
+        {
+            set
+            {
+                _turnCount = value;
+                turns.text = "Turn: " + _turnCount;
+            }
+        }
+
+        private int BattleCount
+        {
+            set
+            {
+                _battleCount = value;
+                battles.text = "Battle: " + _battleCount +"/10";
+            }
+        }
+
         void Awake()
         {
             _cardControllers = new List<ICardController>();
@@ -41,7 +68,15 @@ namespace Main
             _currentInventory = new List<EquipmentValues>();
             _currentShop = new List<EquipmentValues>();
             _currentEquiped = new List<EquipmentValues>();
-            CreateEnemy();
+            
+            _enemyController = CreateEnemy("Enemy");
+            _finalBossController = CreateEnemy("FinalBoss");
+            _enemyController.EnemyAttack += TakeEnemyAttack;
+            _enemyController.EnemyTurnEnd += EnemyTurnEnd;
+            _enemyController.EnemyFainted += EnemyFainted;
+            _finalBossController.EnemyAttack += TakeEnemyAttack;
+            _finalBossController.EnemyTurnEnd += EnemyTurnEnd;
+            _finalBossController.EnemyFainted += EnemyFainted;
             CreatePlayer();
             _inventoryController = CreateInventory();
             _inventoryController.SetCurrentGold(playerValues.gold);
@@ -58,22 +93,20 @@ namespace Main
                 _equipedEquipmentControllers.Add(CreateEquipment(equipedParent));
                 _currentEquiped.Add(null);
             }
-            
+
+            BattleCount = 0;
             StartBattle();
         }
 
-        private void CreateEnemy()
+        private IEnemyController CreateEnemy(string resource)
         {
             var enemyModelFactory = new EnemyModelFactory();
             var enemyModel = enemyModelFactory.Model;
-            var enemyViewFactory = new EnemyViewFactory();
+            var enemyViewFactory = new EnemyViewFactory(resource);
             var enemyView = enemyViewFactory.View;
             var enemyControllerFactory = new EnemyControllerFactory(enemyModel, enemyView);
             var enemyController = enemyControllerFactory.Controller;
-            _enemyController = enemyController;
-            _enemyController.EnemyAttack += TakeEnemyAttack;
-            _enemyController.EnemyTurnEnd += EnemyTurnEnd;
-            _enemyController.EnemyFainted += EnemyFainted;
+            return enemyController;
         }
         
         private void CreatePlayer()
@@ -373,43 +406,6 @@ namespace Main
             }
         }
 
-        private void EnemyFainted(object sender, EventArgs e)
-        {
-            EndBattle();
-        }
-
-        private void EndBattle()
-        {
-            CheckItemEffects(ItemActivationCondition.EndBattle);
-            battleView.SetActive(false);
-            shopView.SetActive(true);
-            _inventoryController.SetCurrentGold(_inventoryController.GetCurrentGold()+Random.Range(10,21));
-            foreach (EquipmentValues values in _currentShop)
-            {
-                equipmentValues.Add(values);
-            }
-            _currentShop.Clear();
-
-            for (int i = 0; i < _shopEquipmentControllers.Count; i++)
-            {
-                if (equipmentValues.Count <= 0)
-                {
-                    return;
-                }
-                int index = Random.Range(0, equipmentValues.Count);
-                _currentShop.Add(equipmentValues[index]);
-                equipmentValues.RemoveAt(index);
-            }
-            
-            UpdateShop();
-        }
-
-
-        private void EnemyTurnEnd(object sender, EventArgs e)
-        {
-            _turnCount++;
-            OnStartTurn();
-        }
 
         private void OnPlayerManaChanged(object sender, EventArgs e)
         {
@@ -424,16 +420,26 @@ namespace Main
             battleView.SetActive(false);
             shopView.SetActive(false);
             endGameView.SetActive(true);
+            endGameMessage.text = "You Died";
         }
         
         public void StartBattle()
         {
-            _turnCount = 0;
+            TurnCount = 0;
+            BattleCount = _battleCount+1;
             _playerController.StartBattle();
             CheckItemEffects(ItemActivationCondition.StartBattle);
             battleView.SetActive(true);
             shopView.SetActive(false);
-            _enemyController.Initialize(enemyValues[Random.Range(0,enemyValues.Count)]);
+            if (_battleCount >= 10)
+            {
+                _enemyController = _finalBossController;
+                _enemyController.Initialize(finalBoss);
+            }
+            else
+            {
+                _enemyController.Initialize(enemyValues[Random.Range(0,enemyValues.Count)]);
+            }
             OnStartTurn();
         }
         
@@ -455,6 +461,48 @@ namespace Main
         {
             CheckItemEffects(ItemActivationCondition.EndTurn);
             _enemyController.StartTurn();
+        }
+        
+        private void EnemyTurnEnd(object sender, EventArgs e)
+        {
+            TurnCount = _turnCount + 1;
+            OnStartTurn();
+        }
+        private void EnemyFainted(object sender, EventArgs e)
+        {
+            EndBattle();
+        }
+
+        private void EndBattle()
+        {
+            CheckItemEffects(ItemActivationCondition.EndBattle);
+            if (_battleCount>= 10)
+            {
+                endGameView.SetActive(true);
+                endGameMessage.text = "You defeated the final boss";
+                return;
+            }
+            battleView.SetActive(false);
+            shopView.SetActive(true);
+            _inventoryController.SetCurrentGold(_inventoryController.GetCurrentGold()+Random.Range(10,21));
+            foreach (EquipmentValues values in _currentShop)
+            {
+                equipmentValues.Add(values);
+            }
+            _currentShop.Clear();
+
+            for (int i = 0; i < _shopEquipmentControllers.Count && i < 3; i++)
+            {
+                if (equipmentValues.Count <= 0)
+                {
+                    return;
+                }
+                int index = Random.Range(0, equipmentValues.Count);
+                _currentShop.Add(equipmentValues[index]);
+                equipmentValues.RemoveAt(index);
+            }
+            
+            UpdateShop();
         }
 
         private void OnCardUsed(object sender, ActionEventArgs e)

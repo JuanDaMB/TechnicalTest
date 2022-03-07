@@ -29,9 +29,9 @@ namespace Factory
     {
         public IEnemyView View { get; }
 
-        public EnemyViewFactory()
+        public EnemyViewFactory(string resource)
         {
-            var prefab = Resources.Load<GameObject>("Enemy");
+            var prefab = Resources.Load<GameObject>(resource);
             var instance = Object.Instantiate(prefab);
             View = instance.GetComponent<IEnemyView>();
         }

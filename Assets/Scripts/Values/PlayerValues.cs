@@ -7,6 +7,7 @@ namespace Values
     {
         public int health;
         public int maxHealth;
+        public int gold;
         public int spellPotency;
         public int attackPotency;
         public int shieldPotency;

@@ -13,10 +13,12 @@ namespace Model
     {
         event EventHandler<int> OnDefend;
         event EventHandler<PlayerHealthChangedEventArgs> OnHealthChanged;
+        event EventHandler OnTakeDamage;
         event EventHandler OnManaChanged;
         event EventHandler OnWeaken;
         event EventHandler OnVulnerable;
         event EventHandler OnInvulnerable;
+        event EventHandler DamageChanged;
         event EventHandler OnDead;
  
         int Health { get; set; }
@@ -35,10 +37,12 @@ namespace Model
     {
         public event EventHandler<int> OnDefend;
         public event EventHandler<PlayerHealthChangedEventArgs> OnHealthChanged;
+        public event EventHandler OnTakeDamage;
         public event EventHandler OnManaChanged;
         public event EventHandler OnWeaken;
         public event EventHandler OnVulnerable;
         public event EventHandler OnInvulnerable;
+        public event EventHandler DamageChanged;
         public event EventHandler OnDead;
         private int _health;
         private int _maxHealth;
@@ -57,6 +61,10 @@ namespace Model
             set
             {
                 if (_health == value) return;
+                if (value < _health)
+                {
+                    OnTakeDamage?.Invoke(this,EventArgs.Empty);
+                }
                 _health = value;
                 if (_health > _maxHealth)
                 {
@@ -155,7 +163,12 @@ namespace Model
         public int AttackPotency
         {
             get => _attackPotency;
-            set => _attackPotency = value;
+            set
+            {
+                if (_attackPotency == value) return;
+                _attackPotency = value;
+                DamageChanged?.Invoke(this,EventArgs.Empty);
+            }
         }
 
 

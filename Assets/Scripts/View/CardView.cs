@@ -18,6 +18,7 @@ namespace View
         string Effect { set; }
         bool IsUsed { set; }
         bool CanBeUsed { set; }
+        void DestroyObject();
     }
     public class CardView : MonoBehaviour, ICardView
     {
@@ -52,6 +53,11 @@ namespace View
                 button.interactable = value;
                 mask.SetActive(!value);
             }
+        }
+
+        public void DestroyObject()
+        {
+            Destroy(gameObject);
         }
 
         public event EventHandler<CardClickedEventArgs> OnClick;

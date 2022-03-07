@@ -12,6 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 16f6599f15d30974ca1aee255ea84dfc, type: 3}
   m_Name: Enemy2
   m_EditorClassIdentifier: 
+  sprite: {fileID: 21300000, guid: b6a079f216f826948bdebbd928d7a778, type: 3}
   health: 32
   maxHealth: 32
   spellPotency: 20

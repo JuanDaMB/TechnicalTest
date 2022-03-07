@@ -1,5 +1,6 @@
 using System;
 using Model;
+using UnityEngine;
 using Values;
 using View;
 using Random = UnityEngine.Random;
@@ -26,7 +27,6 @@ namespace Controller
 
         private float _attackChance;
         private float _defenseChance;
-        private float _spellChance;
         
         public EnemyController(IEnemyModel model, IEnemyView view)
         {
@@ -57,12 +57,12 @@ namespace Controller
 
             _attackChance = values.attackChance; 
             _defenseChance = values.defenseChance;
-            _spellChance = values.spellChance;
 
             _model.VulnerableTurns = 0;
             _model.WeakenTurns = 0;
 
             _view.IsAlive = _model.Health != 0;
+            _view.Sprite = values.sprite;
             DecideTurn();
         }
 
@@ -179,11 +179,25 @@ namespace Controller
         private void DecideTurn()
         {
             bool chosen = false;
+            float c1 = Random.Range(0f, 100f);
+            if (c1 > 0 && c1 <= _attackChance)
+            {
+                _model.Type = ActionType.Attack;
+            }
+            else if (c1> _attackChance && c1 <= _defenseChance)
+            {
+                _model.Type = ActionType.Defense;
+            }
+            else
+            {
+                _model.Type = ActionType.Spell;
+                _model.SpellType = (SpellType) Random.Range(0,3);
+            }
             while (!chosen)
             {
                 if (_model.Type == ActionType.Spell && _model.SpellType == SpellType.Heal && _model.Health == _model.MaxHealt)
                 {
-                    float c1 = Random.Range(0f, 100f);
+                    c1 = Random.Range(0f, 100f);
                     if (c1 > 0 && c1 <= _attackChance)
                     {
                         _model.Type = ActionType.Attack;
@@ -225,10 +239,10 @@ namespace Controller
                     switch (_model.SpellType)
                     {
                         case SpellType.Vulnerable:
-                            _view.TurnIntention = "Vulnerable " + _model.SpellPotency;
+                            _view.TurnIntention = "Vulnerable " + _model.StatusPotency;
                             break;
                         case SpellType.Weak:
-                            _view.TurnIntention = "Weak " + _model.SpellPotency;
+                            _view.TurnIntention = "Weak " + _model.StatusPotency;
                             break;
                         case SpellType.Heal:
                             _view.TurnIntention = "Heal " + _model.SpellPotency;

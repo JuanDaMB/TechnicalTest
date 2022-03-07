@@ -403,20 +403,41 @@ namespace Main
                         ActionEventArgs args = new ActionEventArgs();
                         args.Potency = potency;
                         args.Type = ActionType.Attack;
-                        if (values.condition > 0)
-                        {
-                            if (values.condition == count)
-                            {
-                                _enemyController.TakeAction(args);
-                            }
-                        }
-                        else
+                        if ((values.condition > 0 && values.condition == count) || values.condition <= 0)
                         {
                             _enemyController.TakeAction(args);
                         }
                         break;
                 }
             }
+        }
+        private void CreateShop()
+        {
+            foreach (EquipmentValues values in _currentShop)
+            {
+                values.discount = 1f;
+                equipmentValues.Add(values);
+            }
+            _currentShop.Clear();
+
+            float random = Random.Range(0f, 100f);
+            for (int i = 0; i < _shopEquipmentControllers.Count && i < 3; i++)
+            {
+                if (equipmentValues.Count <= 0)
+                {
+                    return;
+                }
+                int index = Random.Range(0, equipmentValues.Count);
+                if (random > 50f)
+                {
+                    equipmentValues[index].discount = Random.Range(0.1f, 0.9f);
+                    random = 0f;
+                }
+                _currentShop.Add(equipmentValues[index]);
+                equipmentValues.RemoveAt(index);
+            }
+            
+            UpdateShop();
         }
         #endregion
 
@@ -537,36 +558,7 @@ namespace Main
             battleView.SetActive(false);
             shopView.SetActive(true);
             _inventoryController.SetCurrentGold(_inventoryController.GetCurrentGold()+Random.Range(10,21));
-            
-        }
-
-        private void CreateShop()
-        {
-            foreach (EquipmentValues values in _currentShop)
-            {
-                values.discount = 1f;
-                equipmentValues.Add(values);
-            }
-            _currentShop.Clear();
-
-            float random = Random.Range(0f, 100f);
-            for (int i = 0; i < _shopEquipmentControllers.Count && i < 3; i++)
-            {
-                if (equipmentValues.Count <= 0)
-                {
-                    return;
-                }
-                int index = Random.Range(0, equipmentValues.Count);
-                if (random > 50f)
-                {
-                    equipmentValues[index].discount = Random.Range(0.1f, 0.9f);
-                    random = 0f;
-                }
-                _currentShop.Add(equipmentValues[index]);
-                equipmentValues.RemoveAt(index);
-            }
-            
-            UpdateShop();
+            CreateShop();
         }
         #endregion
 

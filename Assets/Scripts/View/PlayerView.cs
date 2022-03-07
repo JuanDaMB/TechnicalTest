@@ -14,6 +14,7 @@ namespace View
         int Vulnerable { set; }
         int Invulnerable { set; }
         string Mana { set; }
+        bool IsAlive { set; }
     }
     public class PlayerView : MonoBehaviour,IPlayerView
     {
@@ -79,21 +80,10 @@ namespace View
         {
             set => manaText.text = value;
         }
-    }
 
-    public enum ItemActivationCondition
-    {
-        StartBattle,
-        EndBattle,
-        StartTurn,
-        EndTurn,
-        OnAttack,
-        OnShield,
-        OnSpell,
-        OnDamageTaken,
-        OnVulnerable,
-        OnWeaken,
-        OnEquip,
-        OnUnequip
+        public bool IsAlive
+        {
+            set => gameObject.SetActive(value);
+        }
     }
 }

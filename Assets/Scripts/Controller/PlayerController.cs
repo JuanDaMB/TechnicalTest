@@ -8,12 +8,17 @@ namespace Controller
 {
     public interface IPlayerController
     { 
-        event EventHandler<int> PlayerAttack;
         public event EventHandler PlayerManaChanged;
+        public event EventHandler PlayerFainted;
+        public event EventHandler PlayerHurt;
+        public event EventHandler<bool> PlayerWeakened;
+        public event EventHandler<int> PlayerDamageChanged;
         public void Initialize(PlayerValues values);
         public void TakeAction(ActionEventArgs e);
+        public void ReceiveItemEffect(ItemEffect effect, int effectPotency);
         public int Mana(int e = 0);
-        public void ResetShield();
+        public void TurnStart();
+        public void StartBattle();
         public bool IsWeaken();
     }
  
@@ -21,10 +26,13 @@ namespace Controller
     {
         private readonly IPlayerModel _model;
         private readonly IPlayerView _view;
-
-        public event EventHandler<int> PlayerAttack;
         public event EventHandler PlayerManaChanged;
-        
+        public event EventHandler PlayerFainted;
+        public event EventHandler PlayerHurt;
+        public event EventHandler<bool> PlayerWeakened;
+        public event EventHandler<int> PlayerDamageChanged;
+
+
         public PlayerController(IPlayerModel model, IPlayerView view)
         {
             _model = model;
@@ -34,7 +42,27 @@ namespace Controller
             model.OnManaChanged += OnManaChanged;
             model.OnWeaken += OnWeaken;
             model.OnVulnerable += OnVulnerable;
+            model.OnInvulnerable += OnInvulnerable;
             model.OnDefend += OnDefend;
+            model.OnDead += PlayerDead;
+            model.OnTakeDamage += DamageTaken;
+            model.DamageChanged+= DamageChanged;
+        }
+
+        private void DamageChanged(object sender, EventArgs e)
+        {
+            PlayerDamageChanged?.Invoke(this, _model.AttackPotency);
+        }
+
+        private void DamageTaken(object sender, EventArgs e)
+        {
+            PlayerHurt?.Invoke(this,EventArgs.Empty);
+        }
+
+        private void PlayerDead(object sender, EventArgs e)
+        {
+            _view.IsAlive = _model.Health > 0;
+            PlayerFainted?.Invoke(this,EventArgs.Empty);
         }
 
         public void Initialize(PlayerValues values)
@@ -45,6 +73,16 @@ namespace Controller
             _model.AttackPotency = values.attackPotency;
             _model.ShieldPotency = values.shieldPotency;
             _model.SpellPotency = values.spellPotency;
+
+            _model.InvulnerableTurns = 0;
+            _model.VulnerableTurns = 0;
+            _model.WeakenTurns = 0;
+            
+            _view.IsAlive = _model.Health > 0;
+        }
+        private void OnInvulnerable(object sender, EventArgs e)
+        {
+            _view.Invulnerable = _model.InvulnerableTurns;
         }
 
         public void TakeAction(ActionEventArgs e)
@@ -52,18 +90,25 @@ namespace Controller
             switch (e.Type)
             {
                 case ActionType.Attack:
-                    if (_model.VulnerableTurns > 0)
+                    if (_model.InvulnerableTurns > 0)
                     {
-                        e.Potency += e.Potency / 2;
-                    }
-                    if (e.Potency > _model.Shield)
-                    {
-                        _model.Health -= e.Potency - _model.Shield;
-                        _model.Shield = 0;
+                        _model.InvulnerableTurns--;
                     }
                     else
                     {
-                        _model.Shield -= e.Potency;
+                        if (_model.VulnerableTurns > 0)
+                        {
+                            e.Potency += e.Potency / 2;
+                        }
+                        if (e.Potency > _model.Shield)
+                        {
+                            _model.Health -= e.Potency - _model.Shield;
+                            _model.Shield = 0;
+                        }
+                        else
+                        {
+                            _model.Shield -= e.Potency;
+                        }
                     }
                     break;
                 case ActionType.Defense:
@@ -81,7 +126,32 @@ namespace Controller
                         case SpellType.Heal:
                             _model.Health += e.Potency;
                             break;
+                        case SpellType.Invulnerable:
+                            _model.InvulnerableTurns += e.Potency;
+                            break;
                     }
+                    break;
+            }
+        }
+
+        public void ReceiveItemEffect(ItemEffect effect, int effectPotency)
+        {
+            switch (effect)
+            {
+                case ItemEffect.Attack:
+                    _model.AttackPotency += effectPotency;
+                    break;
+                case ItemEffect.MaxHealth:
+                    _model.MaxHealt += effectPotency;
+                    break;
+                case ItemEffect.Health:
+                    _model.Health += effectPotency;
+                    break;
+                case ItemEffect.Shield:
+                    _model.Shield += effectPotency;
+                    break;
+                case ItemEffect.Invulnerabilty:
+                    _model.InvulnerableTurns += effectPotency;
                     break;
             }
         }
@@ -92,9 +162,22 @@ namespace Controller
             return _model.Mana;
         }
 
-        public void ResetShield()
+        public void TurnStart()
         {
             _model.Shield = 0;
+            if (_model.VulnerableTurns >0)
+            {
+                _model.VulnerableTurns--;
+            }
+            if (_model.WeakenTurns >0)
+            {
+                _model.WeakenTurns--;
+            }
+        }
+
+        public void StartBattle()
+        {
+            _model.InvulnerableTurns = 0;
         }
 
         public bool IsWeaken()
@@ -121,21 +204,13 @@ namespace Controller
         private void OnWeaken(object sender, EventArgs e)
         {
             _view.Weaken = _model.WeakenTurns;
-        }
-        private void DoDamage(object sender, int e)
-        {
-            OnEnemyAttack(e);
+            PlayerWeakened?.Invoke(this,_model.WeakenTurns> 0);
         }
 
         private void ChangeHealth(object sender, PlayerHealthChangedEventArgs e)
         {
             _view.Health = _model.Health+"/"+_model.MaxHealt;
             _view.HealthPercent = (float)_model.Health / _model.MaxHealt;
-        }
- 
-        protected virtual void OnEnemyAttack(int e)
-        {
-            PlayerAttack?.Invoke(this, e);
         }
     }
 }

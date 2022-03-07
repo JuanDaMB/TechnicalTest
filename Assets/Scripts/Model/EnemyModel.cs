@@ -57,6 +57,7 @@ namespace Model
             set
             {
                 if (_health == value) return;
+                _health = value;
                 if (_health > _maxHealth)
                 {
                     _health = _maxHealth;
@@ -66,7 +67,6 @@ namespace Model
                 {
                     _health = 0;
                 }
-                _health = value;
                 EnemyHealthChangedEventArgs e = new EnemyHealthChangedEventArgs
                 {
                     Health = _health, MaxHealth = _maxHealth
@@ -85,6 +85,10 @@ namespace Model
             set
             {
                 if (_maxHealth == value) return;
+                if (_maxHealth < _health)
+                {
+                    Health = _maxHealth;
+                }
                 _maxHealth = value;
                 EnemyHealthChangedEventArgs e = new EnemyHealthChangedEventArgs
                 {

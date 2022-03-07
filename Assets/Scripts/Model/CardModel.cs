@@ -12,7 +12,8 @@ public enum SpellType
 {
     Vulnerable,
     Weak,
-    Heal
+    Heal, 
+    Invulnerable
 }
 public class ActionEventArgs : EventArgs
 {
@@ -34,10 +35,11 @@ namespace Model
         public ActionType Type { get; set; }
         public SpellType SpellType { get; set; }
         int Potency { get; set; }
+        int ExtraAttack { get; set; }
         bool CardUsed { get; set; }
         bool CanBeUsed { get; set; }
     }
-    public class CardModel : MonoBehaviour, ICardModel
+    public class CardModel : ICardModel
     {
         public event EventHandler<ActionEventArgs> OnCardUsed;
         public event EventHandler OnChangedValues;
@@ -49,6 +51,7 @@ namespace Model
         private int _potency;
         private bool _targetSelf;
         private bool _canBeUsed;
+        private int _extraAttack;
 
         public int Cost
         {
@@ -100,6 +103,16 @@ namespace Model
             }
         }
 
+        public int ExtraAttack
+        {
+            get => _extraAttack;
+            set
+            {
+                _extraAttack = value;
+                OnChangedValues?.Invoke(this,EventArgs.Empty);
+            }
+        }
+
         public bool TargetSelf
         {
             get => _targetSelf;
@@ -122,10 +135,11 @@ namespace Model
                     ActionEventArgs e = new ActionEventArgs
                     {
                         Cost = _cost,
-                        Potency = _potency,
                         Type = _type,
                         SpellType = _spellType,
-                        Self = (_spellType == SpellType.Heal && _type == ActionType.Spell) || _type == ActionType.Defense
+                        Self = ((_spellType == SpellType.Heal || _spellType == SpellType.Invulnerable) &&
+                                _type == ActionType.Spell) || _type == ActionType.Defense,
+                        Potency = _type == ActionType.Attack ? _potency + _extraAttack : _potency
                     };
 
                     OnCardUsed?.Invoke(this, e);

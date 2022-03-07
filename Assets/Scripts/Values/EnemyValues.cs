@@ -5,6 +5,7 @@ namespace Values
     [CreateAssetMenu(menuName = "Dev/EnemyValues")]
     public class EnemyValues : ScriptableObject
     {
+        public Sprite sprite;
         public int health;
         public int maxHealth;
         public int spellPotency;

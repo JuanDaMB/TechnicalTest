@@ -12,9 +12,9 @@ namespace View
         int Shield { set; }
         int Weaken { set; }
         int Vulnerable { set; }
-        int Invulnerable { set; }
         string TurnIntention { set; }
         bool IsAlive { set; }
+        Sprite Sprite { set; }
     }
     
     public class EnemyView : MonoBehaviour, IEnemyView
@@ -27,9 +27,8 @@ namespace View
         public GameObject weakenSymbol;
         public TextMeshProUGUI vulnerableText;
         public GameObject vulneranbleSymbol;
-        public TextMeshProUGUI invulnerableText;
-        public GameObject invulneranbleSymbol;
         public TextMeshProUGUI turnIntention;
+        public SpriteRenderer spriteRenderer;
 
         public string Health
         {
@@ -69,15 +68,6 @@ namespace View
             }
         }
 
-        public int Invulnerable
-        {
-            set
-            {
-                invulneranbleSymbol.SetActive(value > 0);
-                invulnerableText.text = value.ToString();
-            }
-        }
-
         public string TurnIntention
         {
             set => turnIntention.text = value;
@@ -86,6 +76,11 @@ namespace View
         public bool IsAlive
         {
             set => gameObject.SetActive(value);
+        }
+
+        public Sprite Sprite
+        {
+            set => spriteRenderer.sprite = value;
         }
     }
 }

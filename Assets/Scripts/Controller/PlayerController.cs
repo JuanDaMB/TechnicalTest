@@ -1,5 +1,6 @@
 using System;
 using Model;
+using UnityEngine;
 using Values;
 using View;
 using Random = System.Random;
@@ -20,6 +21,7 @@ namespace Controller
         public void TurnStart();
         public void StartBattle();
         public bool IsWeaken();
+        public PlayerValues Current();
     }
  
     public class PlayerController : IPlayerController
@@ -31,7 +33,7 @@ namespace Controller
         public event EventHandler PlayerHurt;
         public event EventHandler<bool> PlayerWeakened;
         public event EventHandler<int> PlayerDamageChanged;
-
+        private PlayerValues _values;
 
         public PlayerController(IPlayerModel model, IPlayerView view)
         {
@@ -67,6 +69,7 @@ namespace Controller
 
         public void Initialize(PlayerValues values)
         {
+            _values = values;
             _model.MaxHealt = values.maxHealth;
             _model.Health = values.health;
             _model.Mana = values.mana;
@@ -90,29 +93,32 @@ namespace Controller
             switch (e.Type)
             {
                 case ActionType.Attack:
-                    if (_model.InvulnerableTurns > 0)
+
+                    if (_model.VulnerableTurns > 0)
                     {
-                        _model.InvulnerableTurns--;
+                        e.Potency += e.Potency / 2;
                     }
-                    else
+
+                    if (e.Potency > _model.Shield)
                     {
-                        if (_model.VulnerableTurns > 0)
+                        if (_model.InvulnerableTurns > 0)
                         {
-                            e.Potency += e.Potency / 2;
+                            _model.InvulnerableTurns--;
                         }
-                        if (e.Potency > _model.Shield)
+                        else
                         {
                             _model.Health -= e.Potency - _model.Shield;
                             _model.Shield = 0;
                         }
-                        else
-                        {
-                            _model.Shield -= e.Potency;
-                        }
                     }
+                    else
+                    {
+                        _model.Shield -= e.Potency;
+                    }
+
                     break;
                 case ActionType.Defense:
-                    _model.Shield += e.Potency+_model.ShieldPotency;
+                    _model.Shield += e.Potency + _model.ShieldPotency;
                     break;
                 case ActionType.Spell:
                     switch (e.SpellType)
@@ -130,6 +136,7 @@ namespace Controller
                             _model.InvulnerableTurns += e.Potency;
                             break;
                     }
+
                     break;
             }
         }
@@ -183,6 +190,12 @@ namespace Controller
         public bool IsWeaken()
         {
             return _model.WeakenTurns > 0;
+        }
+
+        public PlayerValues Current()
+        {
+            _values.health = _model.Health;
+            return _values;
         }
 
         private void OnManaChanged(object sender, EventArgs e)

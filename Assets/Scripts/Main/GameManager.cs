@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Controller;
 using Factory;
 using Model;
+using SaveSystem;
 using TMPro;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using Values;
 using Random = UnityEngine.Random;
 
@@ -24,9 +27,10 @@ namespace Main
         
         public Transform cardsParent, shopParent, inventoryParent, equipmentParent, equipedParent;
         public GameObject battleView, shopView;
+        public SaveScriptableData saveData;
         
         [Header("Values")]
-        public PlayerValues playerValues;
+        public PlayerValues playerValues, originalPLayerValues;
         public List<EnemyValues> enemyValues;
         public List<CardValues> cardValues;
         public List<EquipmentValues> equipmentValues;
@@ -68,24 +72,8 @@ namespace Main
             _currentInventory = new List<EquipmentValues>();
             _currentShop = new List<EquipmentValues>();
             _currentEquiped = new List<EquipmentValues>();
-            
-            _enemyController = CreateEnemy("Enemy");
-            _finalBossController = CreateEnemy("FinalBoss");
-            _enemyController.EnemyAttack += TakeEnemyAttack;
-            _enemyController.EnemyTurnEnd += EnemyTurnEnd;
-            _enemyController.EnemyFainted += EnemyFainted;
-            _finalBossController.EnemyAttack += TakeEnemyAttack;
-            _finalBossController.EnemyTurnEnd += EnemyTurnEnd;
-            _finalBossController.EnemyFainted += EnemyFainted;
-            CreatePlayer();
             _inventoryController = CreateInventory();
             _inventoryController.SetCurrentGold(playerValues.gold);
-            
-            for (int i = 0; i < 3; i++)
-            {
-                
-                _cardControllers.Add(CreateCard());
-            }
 
             for (int i = 0; i < 3; i++)
             {
@@ -93,11 +81,133 @@ namespace Main
                 _equipedEquipmentControllers.Add(CreateEquipment(equipedParent));
                 _currentEquiped.Add(null);
             }
+            
+            for (int i = 0; i < 3; i++)
+            {
+                _cardControllers.Add(CreateCard());
+            }
+            _playerController = CreatePlayer();
+            _playerController.PlayerManaChanged += OnPlayerManaChanged;
+            _playerController.PlayerFainted+= PlayerFainted;
+            _playerController.PlayerHurt += PlayerHurt;
+            _playerController.PlayerWeakened += PlayerWeakened;
+            _playerController.PlayerDamageChanged += PlayerDamageChanged;
 
-            BattleCount = 0;
+            if (saveData.load)
+            {
+                LoadData();
+            }
+            else
+            {
+                BattleCount = 0;
+                playerValues = originalPLayerValues;
+                _playerController.Initialize(playerValues);
+            }
+            
+            _enemyController = CreateEnemy("Enemy");
+            _finalBossController = CreateEnemy("FinalBoss");
+            
+            _enemyController.EnemyAttack += TakeEnemyAttack;
+            _enemyController.EnemyTurnEnd += EnemyTurnEnd;
+            _enemyController.EnemyFainted += EnemyFainted;
+            _finalBossController.EnemyAttack += TakeEnemyAttack;
+            _finalBossController.EnemyTurnEnd += EnemyTurnEnd;
+            _finalBossController.EnemyFainted += EnemyFainted;
+            
             StartBattle();
         }
 
+        #region LoadSave
+
+        private void LoadData()
+        {
+            SaveData data = SaveSystem.SaveSystem.ReadState();
+            if (data != null)
+            {
+                saveData.equipmentValues = new List<EquipmentValues>();
+                saveData.inventoryValues = new List<EquipmentValues>();
+
+                saveData.player = data.player;
+                saveData.battle = data.battle;
+                playerValues = saveData.player;
+                _battleCount = saveData.battle;
+                _inventoryController.SetCurrentGold(playerValues.gold);
+
+                _playerController.Initialize(playerValues);
+                
+                if (data.inventoryValues != null && data.inventoryValues.Count > 0)
+                {
+                    foreach (EquipmentValues value in data.inventoryValues)
+                    {
+                        saveData.inventoryValues.Add(value);
+                    }
+
+                    foreach (EquipmentValues value in saveData.inventoryValues)
+                    {
+                        _currentInventory.Add(value);
+                        equipmentValues.Remove(value);
+                    }
+                    UpdateInventory();
+                }
+                if (data.equipmentValues != null && data.equipmentValues.Count > 0)
+                {
+                    foreach (EquipmentValues value in data.equipmentValues)
+                    {
+                        saveData.equipmentValues.Add(value);
+                    }
+                    foreach (EquipmentValues value in saveData.equipmentValues)
+                    {
+                        if (value != null)
+                        {
+                            value.effectUsed = false;
+                            switch (value.itemUbication)
+                            {
+                                case Ubication.Head:
+                                    _currentEquiped[0] = value;
+                                    break;
+                                case Ubication.Chest:
+                                    _currentEquiped[1] = value;
+                                    break;
+                                case Ubication.Weapon:
+                                    _currentEquiped[2] = value;
+                                    break;
+                            }
+                            equipmentValues.Remove(value);
+                            CheckItemEffects(ItemActivationCondition.OnEquip);
+                            UpdateEquipment();
+                        }
+                    }
+                }
+            }
+        }
+
+        public void Save()
+        {
+            saveData.equipmentValues = new List<EquipmentValues>();
+            saveData.inventoryValues = new List<EquipmentValues>();
+
+            foreach (EquipmentValues values in _currentInventory)
+            {
+                saveData.inventoryValues.Add(values);
+            }
+
+            foreach (EquipmentValues values in _currentEquiped)
+            {
+                saveData.equipmentValues.Add(values);
+            }
+
+            playerValues = _playerController.Current();
+            playerValues.gold = _inventoryController.GetCurrentGold();
+            saveData.player = playerValues;
+            saveData.battle = _battleCount;
+            SaveSystem.SaveSystem.SaveState(saveData);
+            
+            SceneManager.LoadScene(0);
+        }
+        
+        #endregion
+
+        #region Factory
         private IEnemyController CreateEnemy(string resource)
         {
             var enemyModelFactory = new EnemyModelFactory();
@@ -108,8 +218,7 @@ namespace Main
             var enemyController = enemyControllerFactory.Controller;
             return enemyController;
         }
-        
-        private void CreatePlayer()
+        private IPlayerController CreatePlayer()
         {
             var playerModelFactory = new PlayerModelFactory();
             var playerModel = playerModelFactory.Model;
@@ -117,36 +226,8 @@ namespace Main
             var playerView = playerViewFactory.View;
             var playerControllerFactory = new PlayerControllerFactory(playerModel, playerView);
             var playerController = playerControllerFactory.Controller;
-            _playerController = playerController;
-            _playerController.PlayerManaChanged += OnPlayerManaChanged;
-            _playerController.PlayerFainted+= PlayerFainted;
-            _playerController.PlayerHurt += PlayerHurt;
-            _playerController.PlayerWeakened += PlayerWeakened;
-            _playerController.PlayerDamageChanged += PlayerDamageChanged;
-            _playerController.Initialize(playerValues);
+            return playerController;
         }
-
-        private void PlayerDamageChanged(object sender, int e)
-        {
-            foreach (ICardController controller in _cardControllers)
-            {
-                controller.UpdateDamage(e, _playerController.IsWeaken());
-            }
-        }
-
-        private void PlayerWeakened(object sender, bool e)
-        {
-            foreach (ICardController controller in _cardControllers)
-            {
-                controller.UpdateDamage(0, e);
-            }
-        }
-
-        private void PlayerHurt(object sender, EventArgs e)
-        {
-            CheckItemEffects(ItemActivationCondition.OnDamageTaken);
-        }
-
         private ICardController CreateCard()
         {
             var cardModelFactoy = new CardModelFactory();
@@ -183,54 +264,68 @@ namespace Main
             equipmentController.ShoudlShow(false);
             return equipmentController;
         }
+        #endregion
 
-        private void ItemUnequiped(object sender, EquipmentValues e)
+        #region PlayerEvents
+        private void PlayerDamageChanged(object sender, int e)
         {
-            e.effectUsed = false;
-            CheckItemEffects(ItemActivationCondition.OnEquip, true);
-            e.effectUsed = false;
-            
-            switch (e.itemUbication)
+            foreach (ICardController controller in _cardControllers)
             {
-                case Ubication.Head:
-                    _currentEquiped[0] = null;
-                    break;
-                case Ubication.Chest:
-                    _currentEquiped[1] = null;
-                    break;
-                case Ubication.Weapon:
-                    _currentEquiped[2] = null;
-                    break;
-            }
-            
-            _currentInventory.Add(e);
-            
-            UpdateInventory();
-            UpdateEquipment();
-        }
-
-        private void UpdateEquipment()
-        {
-            foreach (IEquipmentController controller in _equipedEquipmentControllers)
-            {
-                controller.ShoudlShow(false);
-            }
-            for (int i = 0; i < _currentEquiped.Count; i++)
-            {
-                if (_currentEquiped[i] != null)
-                {
-                    foreach (IEquipmentController controller in _inventoryEquipmentControllers)
-                    {
-                        controller.SlotUsed(_currentEquiped[i].itemUbication);
-                    }
-                    _equipedEquipmentControllers[i].Initialize(_currentEquiped[i], _inventoryController.GetCurrentGold(), true, true, false);
-                }
+                controller.UpdateDamage(e, _playerController.IsWeaken());
             }
         }
+        private void PlayerWeakened(object sender, bool e)
+        {
+            foreach (ICardController controller in _cardControllers)
+            {
+                controller.UpdateDamage(0, e);
+            }
+        }
+        private void PlayerHurt(object sender, EventArgs e)
+        {
+            CheckItemEffects(ItemActivationCondition.OnDamageTaken);
+        }
+        private void OnPlayerManaChanged(object sender, EventArgs e)
+        {
+            foreach (var t in _cardControllers)
+            {
+                t.UpdateUsage(_playerController.Mana());
+            }
+        }
+        private void PlayerFainted(object sender, EventArgs e)
+        {
+            battleView.SetActive(false);
+            shopView.SetActive(false);
+            endGameView.SetActive(true);
+            endGameMessage.text = "You Died";
+        }
+        private void OnCardUsed(object sender, ActionEventArgs e)
+        {
+            if (e.Type == ActionType.Attack && _playerController.IsWeaken())
+            {
+                e.Potency -= e.Potency / 2;
+            }
+            if (e.Self)
+            {
+                _playerController.TakeAction(e);
+            }
+            else
+            {
+                _enemyController.TakeAction(e);
+            }
 
+            if (e.Type == ActionType.Spell)
+            {
+                CheckItemEffects(ItemActivationCondition.OnSpell);
+            }
+            _playerController.Mana(-e.Cost);
+        }
+        #endregion
+
+        #region ItemEvents
         private void ItemSold(object sender, EquipmentValues e)
         {
-            _inventoryController.SetCurrentGold(_inventoryController.GetCurrentGold()+e.basePrice);
+            _inventoryController.SetCurrentGold(_inventoryController.GetCurrentGold()+ (int)(e.basePrice*e.discount));
             e.effectUsed = false;
             _currentInventory.Remove(e);
             _currentShop.Add(e);
@@ -238,11 +333,9 @@ namespace Main
             UpdateShop();
             UpdateInventory();
         }
-
-
         private void ItemBought(object sender, EquipmentValues e)
         {
-            _inventoryController.SetCurrentGold(_inventoryController.GetCurrentGold()-e.basePrice);
+            _inventoryController.SetCurrentGold(_inventoryController.GetCurrentGold()- (int)(e.basePrice*e.discount));
             e.effectUsed = false;
             _currentInventory.Add(e);
             _currentShop.Remove(e);
@@ -252,31 +345,26 @@ namespace Main
         }
         private void ItemEquiped(object sender, EquipmentValues e)
         {
-            switch (e.itemUbication)
-            {
-                case Ubication.Head:
-                    _currentEquiped[0] = e;
-                    break;
-                case Ubication.Chest:
-                    _currentEquiped[1] = e;
-                    break;
-                case Ubication.Weapon:
-                    _currentEquiped[2] = e;
-                    break;
-            }
+            _currentEquiped[(int)e.itemUbication] = e;
             _currentInventory.Remove(e);
             CheckItemEffects(ItemActivationCondition.OnEquip);
             UpdateInventory();
             UpdateEquipment();
         }
-
+        private void ItemUnequiped(object sender, EquipmentValues e)
+        {
+            e.effectUsed = false;
+            CheckItemEffects(ItemActivationCondition.OnEquip, true);
+            e.effectUsed = false;
+            _currentEquiped[(int)e.itemUbication] = null;
+            _currentInventory.Add(e);
+            UpdateInventory();
+            UpdateEquipment();
+        }
         private void CheckItemEffects(ItemActivationCondition condition, bool invert = false, int count = 0)
         {
-            foreach (EquipmentValues values in _currentEquiped)
+            foreach (var values in from values in _currentEquiped where values != null where !values.effectUsed where values.activationCondition == condition select values)
             {
-                if (values == null) continue;
-                if (values.effectUsed) continue;
-                if (values.activationCondition != condition) continue;
                 if (condition == ItemActivationCondition.OnEquip)
                 {
                     values.effectUsed = true;
@@ -290,22 +378,14 @@ namespace Main
                 switch (values.itemEffect)
                 {
                     case ItemEffect.Health:
-                        _playerController.ReceiveItemEffect(values.itemEffect, potency);
-                        break;
                     case ItemEffect.Shield:
-                        _playerController.ReceiveItemEffect(values.itemEffect, potency);
-                        break;
+                    case ItemEffect.MaxHealth:
                     case ItemEffect.Attack:
+                    case ItemEffect.Invulnerabilty:
                         _playerController.ReceiveItemEffect(values.itemEffect, potency);
                         break;
                     case ItemEffect.Gold:
                         _inventoryController.SetCurrentGold(_inventoryController.GetCurrentGold() + potency);
-                        break;
-                    case ItemEffect.MaxHealth:
-                        _playerController.ReceiveItemEffect(values.itemEffect, potency);
-                        break;
-                    case ItemEffect.Invulnerabilty:
-                        _playerController.ReceiveItemEffect(values.itemEffect, potency);
                         break;
                     case ItemEffect.CardAmount:
                         int n = _cardControllers.Count + potency;
@@ -318,7 +398,6 @@ namespace Main
                         {
                             _cardControllers.Add(CreateCard());
                         }
-
                         break;
                     case ItemEffect.Damage:
                         ActionEventArgs args = new ActionEventArgs();
@@ -333,37 +412,38 @@ namespace Main
                         }
                         else
                         {
-                                
                             _enemyController.TakeAction(args);
                         }
                         break;
-                    default:
-                        throw new ArgumentOutOfRangeException();
                 }
-
             }
         }
+        #endregion
 
-        private void UpdateInventory()
+        #region UpdateItemViews
+        private void HideItemList(List<IEquipmentController> controllers)
         {
-            foreach (IEquipmentController controller in _inventoryEquipmentControllers)
+            foreach (IEquipmentController controller in controllers)
             {
                 controller.ShoudlShow(false);
             }
-            
-            foreach (IEquipmentController controller in _inventoryEquipmentControllers)
+        }
+        private void UpdateEquipment()
+        {
+            HideItemList(_equipedEquipmentControllers);
+            for (int i = 0; i < _currentEquiped.Count; i++)
             {
-                controller.SlotFree();
-            }
-            foreach (var t in _currentEquiped)
-            {
-                if (t == null) continue;
+                if (_currentEquiped[i] == null) continue;
                 foreach (IEquipmentController controller in _inventoryEquipmentControllers)
                 {
-                    controller.SlotUsed(t.itemUbication);
+                    controller.SlotUsed(_currentEquiped[i].itemUbication);
                 }
+                _equipedEquipmentControllers[i].Initialize(_currentEquiped[i], _inventoryController.GetCurrentGold(), true, true, false);
             }
-
+        }
+        private void UpdateInventory()
+        {
+            HideItemList(_inventoryEquipmentControllers);
             if (_currentInventory.Count <= 0) return;
             for (int i = 0; i < _currentInventory.Count; i++)
             {
@@ -387,14 +467,9 @@ namespace Main
                 }
             }
         }
-
         private void UpdateShop()
         {
-            foreach (IEquipmentController controller in _shopEquipmentControllers)
-            {
-                controller.ShoudlShow(false);
-            }
-
+            HideItemList(_shopEquipmentControllers);
             if (_currentShop.Count <= 0) return;
             for (int i = 0; i < _currentShop.Count; i++)
             {
@@ -405,24 +480,9 @@ namespace Main
                 _shopEquipmentControllers[i].Initialize(_currentShop[i],_inventoryController.GetCurrentGold(), false,false,true);
             }
         }
+        #endregion
 
-
-        private void OnPlayerManaChanged(object sender, EventArgs e)
-        {
-            foreach (var t in _cardControllers)
-            {
-                t.UpdateUsage(_playerController.Mana());
-            }
-        }
-        
-        private void PlayerFainted(object sender, EventArgs e)
-        {
-            battleView.SetActive(false);
-            shopView.SetActive(false);
-            endGameView.SetActive(true);
-            endGameMessage.text = "You Died";
-        }
-        
+        #region BattleFlow
         public void StartBattle()
         {
             TurnCount = 0;
@@ -442,7 +502,6 @@ namespace Main
             }
             OnStartTurn();
         }
-        
         private void OnStartTurn()
         {
             _playerController.TurnStart();
@@ -456,23 +515,16 @@ namespace Main
                 t.Initialize(cardValues[n], _playerController.Mana());
             }
         }
-
         public void EndTurn()
         {
             CheckItemEffects(ItemActivationCondition.EndTurn);
             _enemyController.StartTurn();
         }
-        
         private void EnemyTurnEnd(object sender, EventArgs e)
         {
             TurnCount = _turnCount + 1;
             OnStartTurn();
         }
-        private void EnemyFainted(object sender, EventArgs e)
-        {
-            EndBattle();
-        }
-
         private void EndBattle()
         {
             CheckItemEffects(ItemActivationCondition.EndBattle);
@@ -485,12 +537,19 @@ namespace Main
             battleView.SetActive(false);
             shopView.SetActive(true);
             _inventoryController.SetCurrentGold(_inventoryController.GetCurrentGold()+Random.Range(10,21));
+            
+        }
+
+        private void CreateShop()
+        {
             foreach (EquipmentValues values in _currentShop)
             {
+                values.discount = 1f;
                 equipmentValues.Add(values);
             }
             _currentShop.Clear();
 
+            float random = Random.Range(0f, 100f);
             for (int i = 0; i < _shopEquipmentControllers.Count && i < 3; i++)
             {
                 if (equipmentValues.Count <= 0)
@@ -498,38 +557,28 @@ namespace Main
                     return;
                 }
                 int index = Random.Range(0, equipmentValues.Count);
+                if (random > 50f)
+                {
+                    equipmentValues[index].discount = Random.Range(0.1f, 0.9f);
+                    random = 0f;
+                }
                 _currentShop.Add(equipmentValues[index]);
                 equipmentValues.RemoveAt(index);
             }
             
             UpdateShop();
         }
+        #endregion
 
-        private void OnCardUsed(object sender, ActionEventArgs e)
+        #region EnemyEvents
+        private void EnemyFainted(object sender, EventArgs e)
         {
-            if (e.Type == ActionType.Attack && _playerController.IsWeaken())
-            {
-                e.Potency -= e.Potency / 2;
-            }
-            if (e.Self)
-            {
-                _playerController.TakeAction(e);
-            }
-            else
-            {
-                _enemyController.TakeAction(e);
-            }
-
-            if (e.Type == ActionType.Spell)
-            {
-                CheckItemEffects(ItemActivationCondition.OnSpell);
-            }
-            _playerController.Mana(-e.Cost);
+            EndBattle();
         }
-
         void TakeEnemyAttack(object sender, ActionEventArgs e)
         {
             _playerController.TakeAction(e);
         }
+        #endregion
     }
 }

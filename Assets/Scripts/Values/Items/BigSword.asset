@@ -17,7 +17,7 @@ MonoBehaviour:
   basePrice: 30
   condition: 0
   effect: Deal 1 extra damage on attack
-  effectUsed: 0
+  effectUsed: 1
   discount: 1
   activationCondition: 6
   itemUbication: 2

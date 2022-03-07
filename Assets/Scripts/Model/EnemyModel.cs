@@ -14,7 +14,6 @@ namespace Model
         event EventHandler<EnemyHealthChangedEventArgs> OnHealthChanged;
         event EventHandler OnWeaken;
         event EventHandler OnVulnerable;
-        event EventHandler OnInvulnerable;
         event EventHandler OnDead;
  
         // EnemyStats
@@ -37,7 +36,6 @@ namespace Model
         public event EventHandler<EnemyHealthChangedEventArgs> OnHealthChanged;
         public event EventHandler OnWeaken;
         public event EventHandler OnVulnerable;
-        public event EventHandler OnInvulnerable;
         public event EventHandler OnDead;
         private int _health;
         private int _maxHealth;
